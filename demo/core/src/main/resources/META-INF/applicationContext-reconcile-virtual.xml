@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:int="http://www.springframework.org/schema/integration"
+	xmlns:int-sftp="http://www.springframework.org/schema/integration/sftp"
+	xmlns:int-jdbc="http://www.springframework.org/schema/integration/jdbc"
+	xmlns:task="http://www.springframework.org/schema/task"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+		http://www.springframework.org/schema/integration http://www.springframework.org/schema/integration/spring-integration-4.2.xsd
+		http://www.springframework.org/schema/integration/sftp http://www.springframework.org/schema/integration/sftp/spring-integration-sftp-4.2.xsd
+		http://www.springframework.org/schema/integration/jdbc http://www.springframework.org/schema/integration/jdbc/spring-integration-jdbc-4.2.xsd
+		http://www.springframework.org/schema/task http://www.springframework.org/schema/task/spring-task-4.2.xsd">
+
+	<import resource="classpath:META-INF/applicationContext-reconcile-common.xml"/>
+	
+	<bean id="dataSource" class="org.springframework.jdbc.datasource.DriverManagerDataSource">
+        <property name="driverClassName">
+            <value>com.mysql.jdbc.Driver</value>
+        </property>
+        <property name="url">
+            <value>${db.mysql.url}</value>
+        </property>
+        <property name="username">
+            <value>${db.mysql.user}</value>
+        </property>
+        <property name="password">
+            <value>${db.mysql.pwd}</value>
+        </property>
+    </bean>
+    
+	<bean id="sftpSessionFactory" class="org.springframework.integration.sftp.session.DefaultSftpSessionFactory">
+	    <property name="host" value="${sftp.host}" />
+		<property name="port" value="${sftp.port}" />
+		<property name="user" value="${sftp.user}" />
+		<property name="password" value="${sftp.pwd}" />
+		<property name="allowUnknownKeys" value="true" />
+		<property name="timeout" value="5000" />
+	</bean>
+
+	<!-- 对帐网关 -->
+	<int:channel id="reconcileGatewayChannel" />
+	<int:gateway id="reconcileGatewayService" service-interface="com.spring.integration.demo.core.ReconcileGatewayService" />
+	
+	<!-- 分派 -->
+	<int:header-value-router input-channel="reconcileGatewayChannel" header-name="channelCode">
+		<int:mapping value="VR" channel="VRReconcileDistributedChannel"/>
+	</int:header-value-router>
+	
+	<task:executor id="VRbroadcastExecuteService" pool-size="2" queue-capacity="20" />
+	<int:publish-subscribe-channel id="VRReconcileDistributedChannel" task-executor="VRbroadcastExecuteService" />
+
+	<int:channel id="aggregatorReconcileDataChannel" />
+
+	<!-- outer reconcile data -->
+	<int:channel id="VREncryptReconcileDataChannel" />
+	<int-sftp:outbound-gateway session-factory="sftpSessionFactory"
+              request-channel="VRReconcileDistributedChannel"
+              command="get"
+              command-options="-stream"
+              expression="'${sftp.path}/' + 'TRANS_INFO_VIP_' + payload + '.zip'"
+              reply-channel="VREncryptReconcileDataChannel" />
+
+              
+    <int:chain id="VRReconcileDataChain" input-channel="VREncryptReconcileDataChannel" output-channel="aggregatorReconcileDataChannel">
+    	<int:transformer id="encryptTransformer" method="transformPayload" >
+    		<bean class="com.spring.integration.demo.core.virtualchannel.transformer.VirtualEncryptTransformer" />
+    	</int:transformer>
+    	<int:transformer id="unzipTransformer" method="transformPayload">
+    		<bean class="com.spring.integration.demo.core.virtualchannel.transformer.VirtualUnzipTransformer" />
+    	</int:transformer>
+    	<int:transformer id="convertTransformer" method="transformPayload">
+    		<bean class="com.spring.integration.demo.core.virtualchannel.transformer.VirtualConvertReconcileTransformer" />
+    	</int:transformer>
+    </int:chain>
+    
+	<!-- inner reconcile data -->
+	<bean id="virtualChannelRowMapper" class="com.spring.integration.demo.core.virtualchannel.mapper.VirtualChannelRowMapper" />
+	<int-jdbc:outbound-gateway request-channel="VRReconcileDistributedChannel"
+			data-source="dataSource" reply-channel="aggregatorReconcileDataChannel" max-rows-per-poll="0" requires-reply="false" row-mapper="virtualChannelRowMapper">
+		<int-jdbc:query>
+			<value>${reconcile.query.sql}</value>
+		</int-jdbc:query>
+		<!-- exception handler -->
+		<!-- 
+		<int-jdbc:request-handler-advice-chain>
+			<bean class="org.springframework.integration.handler.advice.ExpressionEvaluatingRequestHandlerAdvice">
+				<property name="trapException" value="true" />
+				<property name="failureChannel" ref="errorChannel" />
+				<property name="onFailureExpression" value="payload" />
+			</bean>
+		</int-jdbc:request-handler-advice-chain>
+		 -->
+	</int-jdbc:outbound-gateway>
+	
+	<int:channel id="VRReconcileDataChannel" />
+	<!-- <int:logging-channel-adapter channel="aggregatorReconcileDataChannel" /> -->
+	<int:aggregator input-channel="aggregatorReconcileDataChannel" output-channel="VRReconcileDataChannel" correlation-strategy-expression="" />
+	<!-- <int:logging-channel-adapter channel="BOSHReconcileDataChannel" /> -->
+	<!-- 
+	<int:aggregator input-channel="aggregatorReconcileDataChannel" method="combine" output-channel="BOSHReconcileDataChannel"/>
+	 -->
+	<!-- 
+	<int:channel id="BOSHReconcileDataChannel" />
+	<int:logging-channel-adapter channel="BOSHReconcileDataChannel" />
+	 -->
+</beans>
