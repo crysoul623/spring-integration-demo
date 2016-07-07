@@ -8,6 +8,7 @@ import java.sql.SQLException;
 
 import org.springframework.jdbc.core.RowMapper;
 
+import com.spring.integration.demo.common.PlatformType;
 import com.spring.integration.demo.core.AccountStatementBO;
 
 
@@ -25,6 +26,7 @@ public class VirtualChannelRowMapper implements RowMapper<AccountStatementBO> {
 		accountStatementBO.setReplyNo(rs.getString("RECEIPT_NO"));
 		accountStatementBO.setAmount(rs.getBigDecimal("AMOUNT"));
 		accountStatementBO.setStatus(rs.getString("STATUS"));
+		accountStatementBO.setPlatformType(PlatformType.VIP_SHOP);
 		return accountStatementBO;
 	}
 

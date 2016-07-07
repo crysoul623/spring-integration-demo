@@ -92,15 +92,12 @@
 		 -->
 	</int-jdbc:outbound-gateway>
 	
-	<int:channel id="VRReconcileDataChannel" />
+	<int:channel id="reconcileDataChannel" />
 	<!-- <int:logging-channel-adapter channel="aggregatorReconcileDataChannel" /> -->
-	<int:aggregator input-channel="aggregatorReconcileDataChannel" output-channel="VRReconcileDataChannel" correlation-strategy-expression="" />
-	<!-- <int:logging-channel-adapter channel="BOSHReconcileDataChannel" /> -->
-	<!-- 
-	<int:aggregator input-channel="aggregatorReconcileDataChannel" method="combine" output-channel="BOSHReconcileDataChannel"/>
-	 -->
-	<!-- 
-	<int:channel id="BOSHReconcileDataChannel" />
-	<int:logging-channel-adapter channel="BOSHReconcileDataChannel" />
-	 -->
+	<bean id="reconcileAggregating" class="com.spring.integration.demo.core.ReconcileAggregatingMessageGroupProcessor" />
+	<int:aggregator input-channel="aggregatorReconcileDataChannel" output-channel="reconcileDataChannel"
+					ref="reconcileAggregating" method="aggregatePayloads" 
+					correlation-strategy-expression="headers['channelCode']" release-strategy-expression="size() == 2">
+	</int:aggregator>
+	
 </beans>

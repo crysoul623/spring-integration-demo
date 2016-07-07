@@ -11,6 +11,7 @@ import java.util.stream.Collectors;
 
 import org.springframework.integration.transformer.AbstractPayloadTransformer;
 
+import com.spring.integration.demo.common.PlatformType;
 import com.spring.integration.demo.core.AccountStatementBO;
 
 
@@ -31,6 +32,7 @@ public class VirtualConvertReconcileTransformer extends AbstractPayloadTransform
 				accountStatementBO.setOrderType(params[3]);
 				accountStatementBO.setAmount(new BigDecimal(params[4]));
 				accountStatementBO.setStatus(params[6]);
+				accountStatementBO.setPlatformType(PlatformType.VIRTUAL_BANK);
 				return accountStatementBO;
 			}).collect(Collectors.toList());
 		}

@@ -5,6 +5,8 @@ package com.spring.integration.demo.core;
 
 import java.math.BigDecimal;
 
+import com.spring.integration.demo.common.PlatformType;
+
 /**
  * @author zoro02.lin
  * 对账模型
@@ -20,6 +22,8 @@ public class AccountStatementBO {
 	private String status;
 	
 	private String replyNo;
+	
+	private PlatformType platformType;
 
 	public String getOrderNo() {
 		return orderNo;
@@ -60,5 +64,13 @@ public class AccountStatementBO {
 	public void setReplyNo(String replyNo) {
 		this.replyNo = replyNo;
 	}
-	
+
+	public PlatformType getPlatformType() {
+		return platformType;
+	}
+
+	public void setPlatformType(PlatformType platformType) {
+		this.platformType = platformType;
+	}
+
 }
